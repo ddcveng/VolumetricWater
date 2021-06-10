@@ -11,11 +11,9 @@ bool compileShaders()
 {
   GLuint vertexShader[VertexShader::NumVertexShaders] = {0};
   GLuint fragmentShader[FragmentShader::NumFragmentShaders] = {0};
-  GLuint tcsShader[TesselationControlShader::NumTesselationControlShaders] = {0};
-  GLuint tesShader[TesselationEvaluationShader::NumTesselationEvaluationaShaders] = {0};
 
   // Cleanup lambda
-  auto cleanUp = [&vertexShader, &fragmentShader, &tcsShader, &tesShader]()
+  auto cleanUp = [&vertexShader, &fragmentShader]()
   {
     for (int i = 0; i < VertexShader::NumVertexShaders; ++i)
     {
@@ -27,16 +25,6 @@ bool compileShaders()
     {
       if (glIsShader(fragmentShader[i]))
         glDeleteShader(fragmentShader[i]);
-    }
-
-    for (int i = 0; i < TesselationControlShader::NumTesselationControlShaders; ++i) {
-        if (glIsShader(tcsShader[i]))
-            glDeleteShader(tcsShader[i]);
-    }
-
-    for (int i = 0; i < TesselationEvaluationShader::NumTesselationEvaluationaShaders; ++i) {
-        if (glIsShader(tesShader[i]))
-            glDeleteShader(tesShader[i]);
     }
   };
 
@@ -62,31 +50,19 @@ bool compileShaders()
     }
   }
 
-  // Compile all tcs shaders
-  for (int i = 0; i < TesselationControlShader::NumTesselationControlShaders; ++i) {
-      tcsShader[i] = ShaderCompiler::CompileShader(tcsSource, i, GL_TESS_CONTROL_SHADER);
-      if (!tcsShader[i]) {
-          cleanUp();
-          return false;
-      }
-  }
-
-  // Compile all tes shaders
-  for (int i = 0; i < TesselationEvaluationShader::NumTesselationEvaluationaShaders; ++i) {
-      tesShader[i] = ShaderCompiler::CompileShader(tesSource, i, GL_TESS_EVALUATION_SHADER);
-      if (!tesShader[i]) {
-          cleanUp();
-          return false;
-      }
-  }
-
   // Create all shader programs:
-  shaderProgram[ShaderProgram::Tess] = glCreateProgram();
-  glAttachShader(shaderProgram[ShaderProgram::Tess], vertexShader[VertexShader::Tess]);
-  glAttachShader(shaderProgram[ShaderProgram::Tess], tcsShader[TesselationControlShader::Default]);
-  glAttachShader(shaderProgram[ShaderProgram::Tess], tesShader[TesselationEvaluationShader::Default]);
-  glAttachShader(shaderProgram[ShaderProgram::Tess], fragmentShader[FragmentShader::Default]);
-  if (!ShaderCompiler::LinkProgram(shaderProgram[ShaderProgram::Tess])) {
+  shaderProgram[ShaderProgram::Water] = glCreateProgram();
+  glAttachShader(shaderProgram[ShaderProgram::Water], vertexShader[VertexShader::Water]);
+  glAttachShader(shaderProgram[ShaderProgram::Water], fragmentShader[FragmentShader::Water]);
+  if (!ShaderCompiler::LinkProgram(shaderProgram[ShaderProgram::Water])) {
+      cleanUp();
+      return false;
+  }
+
+ shaderProgram[ShaderProgram::Default] = glCreateProgram();
+  glAttachShader(shaderProgram[ShaderProgram::Default], vertexShader[VertexShader::Default]);
+  glAttachShader(shaderProgram[ShaderProgram::Default], fragmentShader[FragmentShader::Default]);
+  if (!ShaderCompiler::LinkProgram(shaderProgram[ShaderProgram::Default])) {
       cleanUp();
       return false;
   }

@@ -55,6 +55,13 @@ struct MouseStatus
   }
 } mouseStatus = {0.0};
 
+struct FrameBuffer
+{
+    GLuint handle;
+    GLuint color;
+    GLuint depth_stencil;
+};
+
 // ----------------------------------------------------------------------------
 
 // Max buffer length
@@ -66,30 +73,31 @@ GLFWwindow *mainWindow = nullptr;
 Camera camera;
 
 // Meshes
-Mesh<Vertex_Pos_Tex>* ground = nullptr;
-
-// other variables
-const int gridSize = 16;
-
-// 1 - distance based tesselation and displacement
-// 2 - no tesselation or displacement, this is what gets sent to the gpu
-// 3 - max tesselation and displacement
-int mode = 1;
+Mesh<Vertex_Pos_Tex>* quad = nullptr;
+Mesh<Vertex_Pos_Tex>* pool = nullptr;
+Mesh<Vertex_Pos_Tex>* cube = nullptr;
 
 // Textures helper instance
 Textures& textures(Textures::GetInstance());
 
 // Texture we'll be using
-GLuint rocksHeight = 0;
-GLuint rocksCol = 0;
+GLuint waterNormal = 0;
+GLuint waterDuDv = 0;
+GLuint testTex = 0;
+GLuint checkerTex = 0;
 
 // Texture sampler to use
 Sampler activeSampler = Sampler::Nearest;
+
+// Framebuffers
+FrameBuffer reflection = {0};
+FrameBuffer refraction = {0};
 
 // Vsync on?
 bool vsync = true;
 
 // ----------------------------------------------------------------------------
+FrameBuffer createFramebuffer(int width, int height, bool depth_texture);
 
 // Callback for handling GLFW errors
 void errorCallback(int error, const char* description)
@@ -166,30 +174,21 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     else
       glfwSwapInterval(0);
   }
-
-  if (key == GLFW_KEY_1 && action == GLFW_PRESS)
-  {
-      mode = 1;
-  }
-
-  if (key == GLFW_KEY_2 && action == GLFW_PRESS) {
-      mode = 2;
-  }
-
-  if (key == GLFW_KEY_3 && action == GLFW_PRESS) {
-    mode = 3;
-  }
 }
 
 // Helper method for creating scene geometry
 void createGeometry()
 {
     //create a gridSize*gridSize grid of quad patches
-    ground = Geometry::CreateQuadGrid(gridSize);
+    quad = Geometry::CreateQuadTex();
+    pool = Geometry::CreatePoolTex();
+    cube = Geometry::CreateCubeTex();
     
     // Prepare textures
-    rocksHeight = Textures::LoadTexture("data/rocks_ground_02_height_4k.jpg", false);
-    rocksCol = Textures::LoadTexture("data/rocks_ground_02_col_4k.jpg", false);
+    waterNormal = Textures::LoadTexture("data/waterNormal.png", false);
+    waterDuDv = Textures::LoadTexture("data/waterDUDV.png", false);
+    checkerTex = Textures::CreateCheckerBoardTexture(256, 16);
+    testTex = Textures::LoadTexture("data/512-UV-test.png", false);
     
     textures.CreateSamplers();
 }
@@ -257,6 +256,10 @@ bool initOpenGL()
   // Set the initial camera position and orientation
   camera.SetTransformation(glm::vec3(0.0f, 2.5f, -5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
+  reflection = createFramebuffer((int)WindowParams::Width, (int)WindowParams::Height, false);
+  // need to sample depth buffer for fogginess
+  refraction = createFramebuffer((int)WindowParams::Width, (int)WindowParams::Height, true);
+
   return true;
 }
 
@@ -269,9 +272,10 @@ void shutDown()
     }
 
     // Delete the pool mesh
-    delete ground;
-    ground = nullptr;
-
+    delete quad;
+    quad = nullptr;
+    delete pool;
+    pool = nullptr;
 
     // Release the window
     glfwDestroyWindow(mainWindow);
@@ -323,6 +327,66 @@ void processInput(float dt)
     camera.SetTransformation(glm::vec3(0.0f, 0.0f, -5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 }
 
+// should be fine but !!!
+FrameBuffer createFramebuffer(int width, int height, bool depth_texture)
+{
+    // Bind the default framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    GLuint handle = 0;
+    glGenFramebuffers(1, &handle);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, handle);
+
+    // --------------------------------------------------------------------------
+    // Render target texture:
+    // --------------------------------------------------------------------------
+
+    
+    GLuint renderTarget = 0;
+
+    glGenTextures(1, &renderTarget);
+
+    glBindTexture(GL_TEXTURE_2D, renderTarget);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderTarget, 0);
+
+    GLuint depthStencil = 0;
+
+    if (depth_texture)
+    {
+        glGenTextures(1, &depthStencil);
+        glBindTexture(GL_TEXTURE_2D, depthStencil);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthStencil, 0);
+    } 
+    else {
+        glGenRenderbuffers(1, &depthStencil);
+        glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencil);
+    }
+
+    // Set the list of draw buffers.
+    GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
+    glDrawBuffers(1, drawBuffers);
+
+    // Check for completeness
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        printf("Failed to create framebuffer: 0x%04X\n", status);
+    }
+
+    // Bind back the window system provided framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return { handle, renderTarget, depthStencil };
+}
+
 void setupFramebuffer(GLuint fbo, bool useStencil = false)
 {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -346,35 +410,25 @@ void setupFramebuffer(GLuint fbo, bool useStencil = false)
 
 void renderScene(float dt)
 {
-    setupFramebuffer(0, false);
+    // first render everything under the water for refractions
+    setupFramebuffer(refraction.handle, false);
 
-    glUseProgram(shaderProgram[ShaderProgram::Tess]);
+    // draw ...
 
-    // using 4 vertices per patch and quads tesslation
-    glPatchParameteri(GL_PATCH_VERTICES, 4);
+    // now render everything above the water for reflections
+    setupFramebuffer(reflection.handle, false);
+    // we need to move the camera down by 2 time the distance from the water to the camera
+    // and invert the pitch
 
-    // send in the required uniforms
-    const glm::vec4& cameraPos(camera.GetViewToWorld()[3]);
-    const glm::mat4& wtv(camera.GetWorldToView());
-    const glm::mat4& proj(camera.GetProjection());
-    const glm::mat4 model = glm::identity<glm::mat4>();
-    glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(model));
-    glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(wtv));
-    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(proj));
-    glUniform4fv(3, 1, glm::value_ptr(cameraPos));
-    glUniform1i(4, mode);
+    // draw ...
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, rocksCol);
-    glBindSampler(0, textures.GetSampler(activeSampler));
+    // now draw everything in the scene
+    // plus water with reflection and refraction
+    setupFramebuffer(0, true);
 
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, rocksHeight);
-    glBindSampler(1, textures.GetSampler(activeSampler));
+    // use stencil buffer to mask out the ground around where the pool should be
 
-    // draw mode GL_PATCHES !!!
-    glBindVertexArray(ground->GetVAO());
-    glDrawElements(GL_PATCHES, ground->GetIBOSize(), GL_UNSIGNED_INT, reinterpret_cast<void*>(0));
+    // draw ...
 
     glBindVertexArray(0);
     glUseProgram(0);
