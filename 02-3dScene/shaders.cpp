@@ -59,7 +59,7 @@ bool compileShaders()
       return false;
   }
 
- shaderProgram[ShaderProgram::Default] = glCreateProgram();
+  shaderProgram[ShaderProgram::Default] = glCreateProgram();
   glAttachShader(shaderProgram[ShaderProgram::Default], vertexShader[VertexShader::Default]);
   glAttachShader(shaderProgram[ShaderProgram::Default], fragmentShader[FragmentShader::Default]);
   if (!ShaderCompiler::LinkProgram(shaderProgram[ShaderProgram::Default])) {

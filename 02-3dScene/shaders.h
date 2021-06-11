@@ -42,6 +42,7 @@ R"(
 layout (location = 0) uniform mat4 modelToWorld;
 layout (location = 1) uniform mat4 worldToView;
 layout (location = 2) uniform mat4 projection;
+layout (location = 3) uniform vec4 clippingPlane;
 
 layout (location = 0) in vec3 position;
 layout (location = 1) in vec2 texCoords;
@@ -51,12 +52,15 @@ out vec2 vTexCoord;
 
 void main()
 {
+    vec4 positionWorld = modelToWorld * vec4(position, 1.0);
+    gl_ClipDistance[0] = dot(clippingPlane, positionWorld);
+    
     vTexCoord = texCoords;
-    gl_Position = projection * worldToView * modelToWorld * vec4(position, 1.0);
+    gl_Position = projection * worldToView * positionWorld;
 }
 )",
 // Water vertex shader
-    R"(
+R"(
 #version 460 core
 
 layout (location = 0) in vec3 position;

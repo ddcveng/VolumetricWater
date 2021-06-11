@@ -93,6 +93,10 @@ Sampler activeSampler = Sampler::Nearest;
 FrameBuffer reflection = {0};
 FrameBuffer refraction = {0};
 
+// Control variables
+const float water_height = 0.4;
+const float ground_height = 1.0;
+
 // Vsync on?
 bool vsync = true;
 
@@ -240,6 +244,9 @@ bool initOpenGL()
   glDepthFunc(GL_LEQUAL);
 
   glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+
+  // Enable clipping plane 0
+  glEnable(GL_CLIP_DISTANCE0);
 
   // Register a window resize callback
   glfwSetFramebufferSizeCallback(mainWindow, resizeCallback);
@@ -408,23 +415,143 @@ void setupFramebuffer(GLuint fbo, bool useStencil = false)
     }
 }
 
+void renderGround(const Camera& cam, const glm::vec4& clipping_plane)
+{
+    glUseProgram(shaderProgram[ShaderProgram::Default]);
+
+    glm::mat4 modelToWorld = glm::scale(glm::vec3(20.0, 1.0, 20.0));
+    modelToWorld = glm::translate(modelToWorld, glm::vec3(0.0, ground_height, 0.0));
+
+    //set uniforms
+    glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(modelToWorld));
+    glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(cam.GetWorldToView()));
+    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(cam.GetProjection()));
+    glUniform4fv(3, 1, glm::value_ptr(clipping_plane));
+
+    //set textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, checkerTex);
+    glBindSampler(0, textures.GetSampler(activeSampler));
+
+    // draw
+    glBindVertexArray(quad->GetVAO());
+    glDrawElements(GL_TRIANGLES, quad->GetIBOSize(), GL_UNSIGNED_INT, reinterpret_cast<void*>(0));
+    
+    // release resources
+    glUseProgram(0);
+    glBindVertexArray(0);
+}
+
+void renderPool(const Camera& cam, const glm::vec4& clipping_plane)
+{
+    glUseProgram(shaderProgram[ShaderProgram::Default]);
+    
+    glm::mat4 modelToWorld = glm::scale(glm::vec3(2.0, 1.0, 3.0));
+    modelToWorld = glm::translate(modelToWorld, glm::vec3(0.0, ground_height - 0.5, 0.0));
+
+    //set uniforms
+    glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(modelToWorld));
+    glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(cam.GetWorldToView()));
+    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(cam.GetProjection()));
+    glUniform4fv(3, 1, glm::value_ptr(clipping_plane));
+    glUniform4fv(3, 1, glm::value_ptr(clipping_plane));
+
+    //set textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, checkerTex);
+    glBindSampler(0, textures.GetSampler(activeSampler));
+
+    // draw
+    glBindVertexArray(pool->GetVAO());
+    glDrawElements(GL_TRIANGLES, pool->GetIBOSize(), GL_UNSIGNED_INT, reinterpret_cast<void*>(0));
+
+    // release resources
+    glUseProgram(0);
+    glBindVertexArray(0);
+}
+
+void renderExtras(const Camera& cam, const glm::vec4& clipping_plane)
+{
+    glUseProgram(shaderProgram[ShaderProgram::Default]);
+
+    //set uniforms
+    glUniform4fv(0, 1, glm::value_ptr(clipping_plane));
+
+    //set textures
+
+    glBindVertexArray(cube->GetVAO());
+    glDrawElements(GL_TRIANGLES, cube->GetIBOSize(), GL_UNSIGNED_INT, reinterpret_cast<void*>(0));
+
+    // draw more cubes
+
+    // release resources
+    glUseProgram(0);
+    glBindVertexArray(0);
+}
+
+
+void renderWater(const Camera& cam, float dt)
+{
+    glUseProgram(shaderProgram[ShaderProgram::Water]);
+
+    // set uniforms
+
+    // set textures
+    
+    glBindVertexArray(quad->GetVAO());
+    glDrawElements(GL_TRIANGLES, quad->GetIBOSize(), GL_UNSIGNED_INT, reinterpret_cast<void*>(0));
+
+    // release resources
+    glUseProgram(0);
+    glBindVertexArray(0);
+}
+
 void renderScene(float dt)
 {
     // first render everything under the water for refractions
     setupFramebuffer(refraction.handle, false);
 
+    glm::vec4 clipping_plane(0.0, -1.0, 0.0, water_height);
     // draw ...
+    renderPool(camera, clipping_plane);
+    renderGround(camera, clipping_plane); // TODO: stencil buffer needed here too for arbitrary ground planes
 
     // now render everything above the water for reflections
     setupFramebuffer(reflection.handle, false);
+    
     // we need to move the camera down by 2 time the distance from the water to the camera
     // and invert the pitch
+    Camera cam;
+    const glm::mat4x4& viewToWorld = camera.GetViewToWorld();
+
+    glm::vec4 camera_pos = viewToWorld[3];
+    float cameraToWater = camera_pos.y - water_height;
+    camera_pos.y -= 2 * cameraToWater;
+
+    glm::vec4 dir = viewToWorld[2];
+    dir.y *= -1; // invert the pitch
+
+    glm::vec4 aside = viewToWorld[0];
+    glm::vec3 up = glm::normalize(glm::cross(glm::vec3(dir), glm::vec3(aside)));
+
+    const glm::vec3 lookAt(dir + camera_pos);
+    cam.SetTransformation(camera_pos, lookAt, up);
+    // TODO: maybe make the framebuffers respond to window resize
+    cam.SetProjection(45.0f, (float)WindowParams::Width / (float)WindowParams::Height, nearClipPlane, farClipPlane);
+
+    // now cull everything under water
+    clipping_plane.y *= -1;
 
     // draw ...
+    renderGround(cam, clipping_plane);
+    renderPool(cam, clipping_plane);
+    //renderExtras(cam, clipping_plane);
 
     // now draw everything in the scene
     // plus water with reflection and refraction
     setupFramebuffer(0, true);
+
+
 
     // use stencil buffer to mask out the ground around where the pool should be
 
