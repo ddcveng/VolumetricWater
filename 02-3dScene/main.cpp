@@ -94,8 +94,12 @@ FrameBuffer reflection = {0};
 FrameBuffer refraction = {0};
 
 // Control variables
-const float water_height = 0.4;
-const float ground_height = 1.0;
+constexpr float water_height = 0.8f;
+constexpr float ground_height = 1.0f;
+constexpr float infinity = 100.0f;
+constexpr float pool_width = 3.0f;
+constexpr float pool_length = 2.0f;
+constexpr float pool_depth = 1.0f; 
 
 // Vsync on?
 bool vsync = true;
@@ -446,14 +450,13 @@ void renderPool(const Camera& cam, const glm::vec4& clipping_plane)
 {
     glUseProgram(shaderProgram[ShaderProgram::Default]);
     
-    glm::mat4 modelToWorld = glm::scale(glm::vec3(2.0, 1.0, 3.0));
-    modelToWorld = glm::translate(modelToWorld, glm::vec3(0.0, ground_height - 0.5, 0.0));
+    glm::mat4 modelToWorld = glm::scale(glm::vec3(pool_width, pool_depth, pool_length));
+    modelToWorld = glm::translate(modelToWorld, glm::vec3(0.0, ground_height - pool_depth/2, 0.0));
 
     //set uniforms
     glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(modelToWorld));
     glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(cam.GetWorldToView()));
     glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(cam.GetProjection()));
-    glUniform4fv(3, 1, glm::value_ptr(clipping_plane));
     glUniform4fv(3, 1, glm::value_ptr(clipping_plane));
 
     //set textures
@@ -494,10 +497,21 @@ void renderWater(const Camera& cam, float dt)
 {
     glUseProgram(shaderProgram[ShaderProgram::Water]);
 
+    glm::mat4 modelToWorld = glm::scale(glm::vec3(pool_width, 1.0, pool_length));
+    modelToWorld = glm::translate(modelToWorld, glm::vec3(0.0f, water_height, 0.0f));
+    
     // set uniforms
+    glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(modelToWorld));
+    glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(cam.GetWorldToView()));
+    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(cam.GetProjection()));
+    //glUniform4fv(3, 1, glm::value_ptr(clipping_plane));
 
     // set textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, testTex);
+    glBindSampler(0, textures.GetSampler(activeSampler));
     
+    // draw
     glBindVertexArray(quad->GetVAO());
     glDrawElements(GL_TRIANGLES, quad->GetIBOSize(), GL_UNSIGNED_INT, reinterpret_cast<void*>(0));
 
@@ -551,11 +565,34 @@ void renderScene(float dt)
     // plus water with reflection and refraction
     setupFramebuffer(0, true);
 
-
-
-    // use stencil buffer to mask out the ground around where the pool should be
+    clipping_plane = glm::vec4(0, -1, 0, infinity);
 
     // draw ...
+    glEnable(GL_STENCIL_TEST);
+    // need to draw back faces of the pool for proper masking
+    glDisable(GL_CULL_FACE);
+
+    // use stencil buffer to mask out the ground around where the pool should be
+    glStencilFuncSeparate(GL_FRONT, GL_ALWAYS, 1, 0xFF);
+    glStencilFuncSeparate(GL_BACK, GL_ALWAYS, 0, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    glStencilMask(0xFF);
+
+    // populate the stencil buffer
+    renderPool(camera, clipping_plane);
+
+    glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+    glStencilMask(0x00);
+    glDisable(GL_DEPTH_TEST);
+
+    renderGround(camera, clipping_plane);
+
+    glDisable(GL_STENCIL_TEST);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+
+    renderWater(camera, dt);
 
     glBindVertexArray(0);
     glUseProgram(0);

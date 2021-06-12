@@ -47,7 +47,6 @@ layout (location = 3) uniform vec4 clippingPlane;
 layout (location = 0) in vec3 position;
 layout (location = 1) in vec2 texCoords;
 
-out vec4 positionWorld;
 out vec2 vTexCoord;
 
 void main()
@@ -63,11 +62,19 @@ void main()
 R"(
 #version 460 core
 
+layout (location = 0) uniform mat4 modelToWorld;
+layout (location = 1) uniform mat4 worldToView;
+layout (location = 2) uniform mat4 projection;
+
 layout (location = 0) in vec3 position;
+layout (location = 1) in vec2 texCoords;
+
+out vec2 vTexCoord;
 
 void main()
 {
-    gl_Position = vec4(position, 1.0);
+    vTexCoord = texCoords;
+    gl_Position = projection * worldToView * modelToWorld * vec4(position, 1.0);
 }
 )"
 };
@@ -107,11 +114,16 @@ void main()
 R"(
 #version 460 core
 
+layout (binding = 0) uniform sampler2D diffuse;
+
+in vec2 vTexCoord;
+
 layout (location = 0) out vec4 color;
 
 void main()
 {
-    color = vec4(1.0, 0.0, 0.0, 1.0);
+  vec3 texSample = texture(diffuse, vTexCoord).rgb;
+  color = vec4(texSample, 1.0f);
 }
 )"
 };
