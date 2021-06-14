@@ -25,6 +25,7 @@ public:
   static Mesh<Vertex_Pos_Tex>* CreateQuadGrid(int size);
   static Mesh<Vertex_Pos_Col> *CreatePool();
   static Mesh<Vertex_Pos_Tex>* CreatePoolTex();
+  static Mesh<Vertex_Pos_Tex>* CreateCubeTexInsideOut();
 
   // Creates simple cube with colors and shared vertices
   static Mesh<Vertex_Pos_Col> *CreateCubeColorShared();

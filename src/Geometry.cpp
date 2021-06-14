@@ -258,6 +258,71 @@ Mesh<Vertex_Pos_Col>* Geometry::CreatePool()
     return mesh;
 }
 
+Mesh<Vertex_Pos_Tex>* Geometry::CreateCubeTexInsideOut()
+{
+    // Create the vertex buffer for a unit cube
+    std::vector<Vertex_Pos_Tex> vb;
+    vb.reserve(24);
+
+    // Top face
+    vb.push_back({ -0.5f, 0.5f, -0.5f, 1.0f, 0.0f });
+    vb.push_back({ 0.5f, 0.5f, -0.5f, 1.0f, 1.0f });
+    vb.push_back({ 0.5f, 0.5f, 0.5f, 0.0f, 1.0f });
+    vb.push_back({ -0.5f, 0.5f, 0.5f, 0.0f, 0.0f });
+
+    // Bottom face
+    vb.push_back({ 0.5f, -0.5f, -0.5f, 1.0f, 0.0f });
+    vb.push_back({ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f });
+    vb.push_back({ -0.5f, -0.5f, 0.5f, 0.0f, 1.0f });
+    vb.push_back({ 0.5f, -0.5f, 0.5f, 0.0f, 0.0f });
+
+    // Front face
+    vb.push_back({ -0.5f, -0.5f, -0.5f, 0.0f, 0.0f });
+    vb.push_back({ 0.5f, -0.5f, -0.5f, 1.0f, 0.0f });
+    vb.push_back({ 0.5f, 0.5f, -0.5f, 1.0f, 1.0f });
+    vb.push_back({ -0.5f, 0.5f, -0.5f, 0.0f, 1.0f });
+
+    // Back face
+    vb.push_back({ 0.5f, -0.5f, 0.5f, 0.0f, 0.0f });
+    vb.push_back({ -0.5f, -0.5f, 0.5f, 1.0f, 0.0f });
+    vb.push_back({ -0.5f, 0.5f, 0.5f, 1.0f, 1.0f });
+    vb.push_back({ 0.5f, 0.5f, 0.5f, 0.0f, 1.0f });
+
+    // Left face
+    vb.push_back({ -0.5f, -0.5f, 0.5f, 0.0f, 0.0f });
+    vb.push_back({ -0.5f, -0.5f, -0.5f, 1.0f, 0.0f });
+    vb.push_back({ -0.5f, 0.5f, -0.5f, 1.0f, 1.0f });
+    vb.push_back({ -0.5f, 0.5f, 0.5f, 0.0f, 1.0f });
+
+    // Right face
+    vb.push_back({ 0.5f, -0.5f, -0.5f, 0.0f, 0.0f });
+    vb.push_back({ 0.5f, -0.5f, 0.5f, 1.0f, 0.0f });
+    vb.push_back({ 0.5f, 0.5f, 0.5f, 1.0f, 1.0f });
+    vb.push_back({ 0.5f, 0.5f, -0.5f, 0.0f, 1.0f });
+
+    // Fill in the index buffer
+    std::vector<GLuint> ib;
+    ib.reserve(36);
+    for (int face = 0; face < 6; ++face) {
+        GLuint baseIndex = 4 * face;
+
+        // One triangle
+        ib.push_back(baseIndex + 3);
+        ib.push_back(baseIndex + 2);
+        ib.push_back(baseIndex + 1);
+
+        // Other triangle
+        ib.push_back(baseIndex + 1);
+        ib.push_back(baseIndex);
+        ib.push_back(baseIndex + 3);
+    }
+
+    // Create, initialize and return the mesh
+    Mesh<Vertex_Pos_Tex>* mesh = new Mesh<Vertex_Pos_Tex>();
+    mesh->Init(vb, ib);
+    return mesh;
+}
+
 Mesh<Vertex_Pos_Col> *Geometry::CreateCubeColor()
 {
   // Create the vertex buffer for a unit cube

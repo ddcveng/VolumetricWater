@@ -76,6 +76,7 @@ Camera camera;
 Mesh<Vertex_Pos_Tex>* quad = nullptr;
 Mesh<Vertex_Pos_Tex>* pool = nullptr;
 Mesh<Vertex_Pos_Tex>* cube = nullptr;
+Mesh<Vertex_Pos_Tex>* skyBox = nullptr;
 
 // Textures helper instance
 Textures& textures(Textures::GetInstance());
@@ -86,6 +87,7 @@ GLuint waterDuDv = 0;
 GLuint testTex = 0;
 GLuint checkerTex = 0;
 GLuint terracotaTex = 0;
+GLuint skyTex = 0;
 
 // Texture sampler to use
 Sampler activeSampler = Sampler::Nearest;
@@ -195,6 +197,7 @@ void createGeometry()
     quad = Geometry::CreateQuadTex();
     pool = Geometry::CreatePoolTex();
     cube = Geometry::CreateCubeTex();
+    skyBox = Geometry::CreateCubeTexInsideOut();
     
     // Prepare textures
     waterNormal = Textures::LoadTexture("data/waterNormal.png", false);
@@ -202,6 +205,7 @@ void createGeometry()
     checkerTex = Textures::CreateCheckerBoardTexture(256, 16);
     testTex = Textures::LoadTexture("data/512-UV-test.png", false);
     terracotaTex = Textures::LoadTexture("data/Terracotta_Tiles_002_Base_Color.jpg", false);
+    skyTex = Textures::LoadTexture("data/sky_seamless.jpg", false);
     
     textures.CreateSamplers();
 }
@@ -608,6 +612,29 @@ void renderWater(const Camera& cam, float dt)
     glBindVertexArray(0);
 }
 
+void renderSky(const Camera& cam)
+{
+    glUseProgram(shaderProgram[ShaderProgram::Default]);
+
+    glm::mat4 modelToWorld = glm::scale(glm::vec3(50.0f, 50.0f, 50.0f));
+
+    glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(modelToWorld));
+    glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(cam.GetWorldToView()));
+    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(cam.GetProjection()));
+    glUniform4fv(3, 1, glm::value_ptr(clipping_plane));
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, skyTex);
+    glBindSampler(0, textures.GetSampler(activeSampler));
+
+    glBindVertexArray(skyBox->GetVAO());
+    glDrawElements(GL_TRIANGLES, skyBox->GetIBOSize(), GL_UNSIGNED_INT, reinterpret_cast<void*>(0));
+
+    // release resources
+    glUseProgram(0);
+    glBindVertexArray(0);
+}
+
 void renderScene(float dt)
 {
     // first render everything under the water for refractions
@@ -617,6 +644,7 @@ void renderScene(float dt)
     // draw ...
     renderPool(camera);
     //renderGround(camera, clipping_plane); // TODO: stencil buffer needed here too for arbitrary ground planes
+    renderSky(camera);
 
     // now render everything above the water for reflections
     setupFramebuffer(reflection.handle, false);
@@ -645,9 +673,10 @@ void renderScene(float dt)
     clipping_plane.y *= -1;
 
     // draw ...
-    //renderGround(cam, clipping_plane);
     renderPool(cam);
+    //renderGround(cam, clipping_plane);
     renderExtras(cam);
+    renderSky(cam);
 
     // now draw everything in the scene
     // plus water with reflection and refraction
@@ -655,6 +684,7 @@ void renderScene(float dt)
 
     clipping_plane = glm::vec4(0, -1, 0, infinity);
 
+    renderSky(camera);
     // draw ...
     glEnable(GL_STENCIL_TEST);
     // need to draw back faces of the pool for proper masking
