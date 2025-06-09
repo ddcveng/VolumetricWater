@@ -26,8 +26,8 @@
 // Enum class for storing default window parameters
 enum class WindowParams : int
 {
-  Width = 800,
-  Height = 600
+  Width = 1600,
+  Height = 1200,
 };
 
 // ----------------------------------------------------------------------------
@@ -200,12 +200,12 @@ void createGeometry()
     skyBox = Geometry::CreateCubeTexInsideOut();
     
     // Prepare textures
-    waterNormal = Textures::LoadTexture("data/waterNormal.png", false);
-    waterDuDv = Textures::LoadTexture("data/waterDUDV.png", false);
+    waterNormal = Textures::LoadTexture("waterNormal.jpg", false);
+    waterDuDv = Textures::LoadTexture("waterDisplacement.png", false);
     checkerTex = Textures::CreateCheckerBoardTexture(256, 16);
-    testTex = Textures::LoadTexture("data/512-UV-test.png", false);
-    terracotaTex = Textures::LoadTexture("data/Terracotta_Tiles_002_Base_Color.jpg", false);
-    skyTex = Textures::LoadTexture("data/sky_seamless.jpg", false);
+    testTex = Textures::LoadTexture("debugUV.png", false);
+    terracotaTex = Textures::LoadTexture("brickWall.jpg", false);
+    skyTex = Textures::LoadTexture("sky_seamless_texture_5893.jpg", false);
     
     textures.CreateSamplers();
 }

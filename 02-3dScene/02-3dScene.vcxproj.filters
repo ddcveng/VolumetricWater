@@ -63,4 +63,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\data\brickWall.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\data\debugUV.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\data\sky_seamless_texture_5893.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\data\waterDisplacement.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\data\waterNormal.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
 </Project>
